@@ -1018,6 +1018,32 @@ func TestVtxoStoreGetEventChannel(t *testing.T) {
 				require.Len(t, ev.Vtxos, len(testVtxos))
 			})
 
+			t.Run("AddVtxos skips a duplicate and emits only the new vtxo", func(t *testing.T) {
+				newVtxo := clientTypes.Vtxo{
+					Outpoint: clientTypes.Outpoint{
+						Txid: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+						VOut: 0,
+					},
+					Script: "0000000000000000000000000000000000000000000000000000000000000001",
+					Amount: 5000,
+					CommitmentTxids: []string{
+						"0000000000000000000000000000000000000000000000000000000000000000",
+					},
+					ExpiresAt: time.Unix(1748143068, 0),
+					CreatedAt: time.Unix(1746143068, 0),
+				}
+
+				// The event must carry only the vtxo that was actually stored,
+				// never the duplicate that was skipped.
+				n, err := s.AddVtxos(ctx, []clientTypes.Vtxo{testVtxos[0], newVtxo})
+				require.NoError(t, err)
+				require.Equal(t, 1, n)
+
+				ev := drainEvent(t, types.VtxosAdded)
+				require.Len(t, ev.Vtxos, 1)
+				require.Equal(t, newVtxo.Outpoint, ev.Vtxos[0].Outpoint)
+			})
+
 			t.Run("SpendVtxos emits VtxosSpent", func(t *testing.T) {
 				_, err := s.SpendVtxos(ctx, testSpendVtxoKeys, arkTxid)
 				require.NoError(t, err)
